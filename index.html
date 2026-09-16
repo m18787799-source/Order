@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -390,7 +391,7 @@
             const qty = parseInt(document.getElementById('order-quantity').value);
 
             if (qty < selectedService.min_qty || qty > selectedService.max_qty) {
-                alert(`⚠️ Quantity must be between ${selectedService.min_qty.toLocaleString()} and ${selectedService.max_qty.toLocaleString()}`);
+                alert(`⚠️ Quantity must be between ${selectedService.min_qty} and ${selectedService.max_qty}`);
                 return;
             }
 
@@ -482,7 +483,7 @@
             }
         }
 
-        // DEPOSIT REQUEST FUNCTION WITH PENDING CHECK & BEP20 AGENT REDIRECT
+        // DEPOSIT REQUEST FUNCTION WITH PENDING CHECK
         function handleDeposit(e) {
             e.preventDefault();
             const usd = parseFloat(document.getElementById('deposit-usd').value);
@@ -497,7 +498,7 @@
             const pendingDeposit = userDeposits.find(d => d.status === 'Pending');
 
             if (pendingDeposit) {
-                alert('⚠️ Please wait! Your previous deposit request is still Pending. You can submit a new request once the previous one is Approved or Rejected.');
+                alert('⚠️ እባክዎ ይጠብቁ! ከዚህ በፊት የላኩት የክፍያ ጥያቄ ገና Pending ላይ ነው። አዲስ ጥያቄ ለመላክ የቅድሙ Approved ወይም Rejected መሆን አለበት።');
                 return;
             }
 
@@ -513,21 +514,10 @@
             userDeposits.unshift(newDeposit);
             localStorage.setItem('earnova_deposits', JSON.stringify(userDeposits));
 
+            alert('✅ የክፍያ ጥያቄዎ በተሳካ ሁኔታ ተልኳል! አስተዳዳሪው እስኪያረጋግጠው ድረስ በትዕግስት ይጠብቁ።');
+            
             document.getElementById('deposit-usd').value = '';
             document.getElementById('deposit-txid').value = '';
-
-            // Check if payment method is BEP20 to redirect to Telegram Agent with instructions
-            if (currentDepositMethod === 'bep20') {
-                alert('✅ Deposit submitted! Please send your payment screenshot to our Telegram Agent.');
-                if (tg && tg.openTelegramLink) {
-                    tg.openTelegramLink('https://t.me/EarnovaSupport');
-                } else {
-                    window.open('https://t.me/EarnovaSupport', '_blank');
-                }
-            } else {
-                alert('✅ Your deposit request has been successfully submitted! Please wait for admin verification.');
-            }
-
             switchMainTab('services');
         }
 
