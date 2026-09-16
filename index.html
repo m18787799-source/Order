@@ -244,15 +244,27 @@
             </div>
         </div>
 
-        <!-- VIEW 3: MY ORDERS (ORDER HISTORY) -->
+        <!-- VIEW 3: MY ORDERS & DEPOSIT HISTORY -->
         <div id="main-history-tab" class="hidden space-y-4">
             <div>
-                <h1 class="text-2xl font-extrabold tracking-tight">Order History</h1>
-                <p class="text-xs text-gray-400 mt-0.5">Track your placed orders status</p>
+                <h1 class="text-2xl font-extrabold tracking-tight">History</h1>
+                <p class="text-xs text-gray-400 mt-0.5">Track your orders and deposit requests</p>
             </div>
 
+            <!-- TAB TOGGLE SUB-SECTIONS -->
+            <div class="flex border-b border-gray-800 space-x-4 text-xs font-bold">
+                <button onclick="switchHistorySubTab('orders')" id="subtab-orders-btn" class="pb-2 text-orange-400 border-b-2 border-orange-500 transition">Orders History</button>
+                <button onclick="switchHistorySubTab('deposits')" id="subtab-deposits-btn" class="pb-2 text-gray-400 hover:text-white transition">Deposit Requests</button>
+            </div>
+
+            <!-- ORDERS LIST CONTAINER -->
             <div class="space-y-3" id="user-orders-container">
                 <!-- Dynamic user orders history -->
+            </div>
+
+            <!-- DEPOSITS LIST CONTAINER -->
+            <div class="space-y-3 hidden" id="user-deposits-container">
+                <!-- Dynamic user deposits history -->
             </div>
         </div>
 
@@ -270,7 +282,7 @@
         </button>
         <button onclick="switchMainTab('history')" id="nav-history-btn" class="flex flex-col items-center text-gray-400 hover:text-white font-bold text-xs space-y-1">
             <span class="text-lg">📋</span>
-            <span>My Orders</span>
+            <span>History</span>
         </button>
     </nav>
 
@@ -378,7 +390,7 @@
             const qty = parseInt(document.getElementById('order-quantity').value);
 
             if (qty < selectedService.min_qty || qty > selectedService.max_qty) {
-                alert(`⚠️ Quantity must be between ${selectedService.min_qty} and ${selectedService.max_qty}`);
+                alert(`⚠️ Quantity must be between ${selectedService.min_qty.toLocaleString()} and ${selectedService.max_qty.toLocaleString()}`);
                 return;
             }
 
@@ -411,6 +423,7 @@
             document.getElementById('order-link').value = '';
             goBack();
             switchMainTab('history');
+            switchHistorySubTab('orders');
         }
 
         function selectPaymentMethod(method) {
@@ -439,7 +452,6 @@
             calculateDepositEquivalent();
         }
 
-        // ONE-CLICK COPY FUNCTION WITH TOAST ALERT
         function copyPaymentDetail() {
             const textToCopy = document.getElementById('copy-value').innerText.trim();
             navigator.clipboard.writeText(textToCopy).then(() => {
@@ -464,24 +476,45 @@
             const eqEl = document.getElementById('deposit-equivalent');
             if (currentDepositMethod === 'telebirr' || currentDepositMethod === 'mpesa') {
                 const etb = usd * 160;
-                eqEl.innerText = `Equivalent: ${etb.ETB ? etb.ETB : etb.toFixed(2)} ETB (Rate: 160 ETB = $1)`;
+                eqEl.innerText = `Equivalent: ${etb.toFixed(2)} ETB (Rate: 160 ETB = $1)`;
             } else {
                 eqEl.innerText = `Crypto Deposit (BEP20 Network)`;
             }
         }
 
+        // DEPOSIT REQUEST FUNCTION WITH PENDING CHECK
         function handleDeposit(e) {
             e.preventDefault();
             const usd = parseFloat(document.getElementById('deposit-usd').value);
+            const txid = document.getElementById('deposit-txid').value.trim();
+
             if (usd < 1) {
                 alert('⚠️ Minimum deposit amount is $1.00');
                 return;
             }
 
-            userBalance += usd;
-            updateBalanceDisplay();
+            let userDeposits = JSON.parse(localStorage.getItem('earnova_deposits')) || [];
+            const pendingDeposit = userDeposits.find(d => d.status === 'Pending');
 
-            alert(`✅ Deposit request submitted successfully! $${usd.toFixed(2)} added to your balance.`);
+            if (pendingDeposit) {
+                alert('⚠️ Please wait! Your previous deposit request is still Pending. You can submit a new request once the previous one is Approved or Rejected.');
+                return;
+            }
+
+            const newDeposit = {
+                id: Math.floor(10000 + Math.random() * 90000),
+                method: currentDepositMethod.toUpperCase(),
+                amount: usd.toFixed(2),
+                txid: txid,
+                status: 'Pending',
+                date: new Date().toISOString().split('T')[0]
+            };
+
+            userDeposits.unshift(newDeposit);
+            localStorage.setItem('earnova_deposits', JSON.stringify(userDeposits));
+
+            alert('✅ Your deposit request has been successfully submitted! Please wait for admin verification.');
+            
             document.getElementById('deposit-usd').value = '';
             document.getElementById('deposit-txid').value = '';
             switchMainTab('services');
@@ -520,6 +553,59 @@
             container.innerHTML = html;
         }
 
+        function renderUserDeposits() {
+            const container = document.getElementById('user-deposits-container');
+            const deposits = JSON.parse(localStorage.getItem('earnova_deposits')) || [];
+
+            if (deposits.length === 0) {
+                container.innerHTML = `<div class="card-bg p-8 text-center rounded-2xl"><p class="text-xs text-gray-400">You haven't made any deposit requests yet.</p></div>`;
+                return;
+            }
+
+            let html = '';
+            deposits.forEach(dep => {
+                let statusBg = 'bg-yellow-500/20 text-yellow-400';
+                if (dep.status === 'Approved') statusBg = 'bg-green-500/20 text-green-400';
+                if (dep.status === 'Rejected') statusBg = 'bg-red-500/20 text-red-400';
+
+                html += `
+                    <div class="card-bg p-4 rounded-2xl space-y-2 text-xs">
+                        <div class="flex justify-between items-center">
+                            <span class="font-mono text-gray-400">Ref: #${dep.id}</span>
+                            <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold ${statusBg}">${dep.status}</span>
+                        </div>
+                        <div class="flex justify-between items-center font-mono">
+                            <span class="text-gray-300">Method: <b>${dep.method}</b></span>
+                            <span class="text-orange-400 font-extrabold text-sm">$${dep.amount}</span>
+                        </div>
+                        <p class="text-[10px] text-gray-500 font-mono truncate">TXID: ${dep.txid}</p>
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
+        }
+
+        function switchHistorySubTab(subTab) {
+            const ordersBtn = document.getElementById('subtab-orders-btn');
+            const depositsBtn = document.getElementById('subtab-deposits-btn');
+            const ordersContainer = document.getElementById('user-orders-container');
+            const depositsContainer = document.getElementById('user-deposits-container');
+
+            if (subTab === 'orders') {
+                ordersBtn.className = 'pb-2 text-orange-400 border-b-2 border-orange-500 transition';
+                depositsBtn.className = 'pb-2 text-gray-400 hover:text-white transition';
+                ordersContainer.classList.remove('hidden');
+                depositsContainer.classList.add('hidden');
+                renderUserOrders();
+            } else {
+                depositsBtn.className = 'pb-2 text-orange-400 border-b-2 border-orange-500 transition';
+                ordersBtn.className = 'pb-2 text-gray-400 hover:text-white transition';
+                depositsContainer.classList.remove('hidden');
+                ordersContainer.classList.add('hidden');
+                renderUserDeposits();
+            }
+        }
+
         function switchMainTab(tab) {
             document.getElementById('main-services-tab').classList.add('hidden');
             document.getElementById('main-deposit-tab').classList.add('hidden');
@@ -538,7 +624,7 @@
             } else if (tab === 'history') {
                 document.getElementById('main-history-tab').classList.remove('hidden');
                 document.getElementById('nav-history-btn').className = 'flex flex-col items-center text-orange-400 font-bold text-xs space-y-1';
-                renderUserOrders();
+                switchHistorySubTab('orders');
             }
         }
 
