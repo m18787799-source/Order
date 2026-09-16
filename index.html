@@ -482,7 +482,7 @@
             }
         }
 
-        // DEPOSIT REQUEST FUNCTION WITH PENDING CHECK
+        // DEPOSIT REQUEST FUNCTION WITH PENDING CHECK & BEP20 AGENT REDIRECT
         function handleDeposit(e) {
             e.preventDefault();
             const usd = parseFloat(document.getElementById('deposit-usd').value);
@@ -513,10 +513,21 @@
             userDeposits.unshift(newDeposit);
             localStorage.setItem('earnova_deposits', JSON.stringify(userDeposits));
 
-            alert('✅ Your deposit request has been successfully submitted! Please wait for admin verification.');
-            
             document.getElementById('deposit-usd').value = '';
             document.getElementById('deposit-txid').value = '';
+
+            // Check if payment method is BEP20 to redirect to Telegram Agent with instructions
+            if (currentDepositMethod === 'bep20') {
+                alert('✅ Deposit submitted! Please send your payment screenshot to our Telegram Agent.');
+                if (tg && tg.openTelegramLink) {
+                    tg.openTelegramLink('https://t.me/EarnovaSupport');
+                } else {
+                    window.open('https://t.me/EarnovaSupport', '_blank');
+                }
+            } else {
+                alert('✅ Your deposit request has been successfully submitted! Please wait for admin verification.');
+            }
+
             switchMainTab('services');
         }
 
