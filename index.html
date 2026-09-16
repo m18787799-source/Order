@@ -6,6 +6,8 @@
     <title>Earnova - Social Media Growth Services</title>
     <!-- Telegram WebApp SDK -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <!-- Supabase JS Library -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -259,12 +261,12 @@
 
             <!-- ORDERS LIST CONTAINER -->
             <div class="space-y-3" id="user-orders-container">
-                <!-- Dynamic user orders history -->
+                <!-- Dynamic user orders history from Supabase -->
             </div>
 
             <!-- DEPOSITS LIST CONTAINER -->
             <div class="space-y-3 hidden" id="user-deposits-container">
-                <!-- Dynamic user deposits history -->
+                <!-- Dynamic user deposits history from Supabase -->
             </div>
         </div>
 
@@ -293,6 +295,17 @@
             tg.expand();
         }
 
+        // Supabase Configuration
+        const SUPABASE_URL = 'https://anqlndoavruevkcyxebu.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFucWxuZG9hdnJ1ZXZrcyI5cyIsInJvbGUiOiJhbm9uIiwiaWF0IjoxNzg5NTYxNzI3LCJleHAiOjIxMDUxMzc3Mjd9.m1HCjVLbkYQRaAUqnZ-pOQ9XjsQC2g2zQTbA12aVuoQ';
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        let currentTelegramUser = {
+            id: 12345678,
+            first_name: 'User',
+            username: 'guest'
+        };
+
         const allServices = [
             { id: 1, category_id: 'tiktok', name: 'TikTok Real Followers Service💎 | 5K per Day | Active & Stable | High Retention | Fast Start | Up to 100K Followers ⚡️', min_qty: 50, max_qty: 100000, rate_per_1k: 68.00 },
             { id: 2, category_id: 'telegram', name: 'Telegram Real Members | Fast Start | Active & Stable', min_qty: 10, max_qty: 100000, rate_per_1k: 30.00 },
@@ -304,22 +317,46 @@
 
         let selectedService = null;
         let currentDepositMethod = 'telebirr';
-        let userBalance = parseFloat(localStorage.getItem('earnova_balance')) || 0.00;
+        let userBalance = 0.00;
 
         document.addEventListener('DOMContentLoaded', () => {
+            initUserSession();
+            updateCategoryCounts();
+        });
+
+        // Initialize User Session & Supabase Sync
+        async function initUserSession() {
             if (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) {
                 const user = tg.initDataUnsafe.user;
-                const name = user.first_name || 'User';
-                document.getElementById('user-display').innerText = name;
-                document.getElementById('user-avatar').innerText = name.charAt(0).toUpperCase();
+                currentTelegramUser.id = user.id;
+                currentTelegramUser.first_name = user.first_name || 'User';
+                currentTelegramUser.username = user.username || '';
             }
-            updateCategoryCounts();
+
+            document.getElementById('user-display').innerText = currentTelegramUser.first_name;
+            document.getElementById('user-avatar').innerText = currentTelegramUser.first_name.charAt(0).toUpperCase();
+
+            const { data, error } = await supabaseClient
+                .from('users')
+                .select('*')
+                .eq('id', currentTelegramUser.id)
+                .single();
+
+            if (!data) {
+                await supabaseClient.from('users').insert([
+                    { id: currentTelegramUser.id, first_name: currentTelegramUser.first_name, username: currentTelegramUser.username, balance: 0.00 }
+                ]);
+                userBalance = 0.00;
+            } else {
+                userBalance = parseFloat(data.balance);
+            }
             updateBalanceDisplay();
-        });
+            loadUserOrdersFromSupabase();
+            loadUserDepositsFromSupabase();
+        }
 
         function updateBalanceDisplay() {
             document.getElementById('user-balance').innerText = userBalance.toFixed(2);
-            localStorage.setItem('earnova_balance', userBalance.toFixed(2));
         }
 
         function updateCategoryCounts() {
@@ -384,7 +421,8 @@
             document.getElementById('order-total-price').innerText = `$${total.toFixed(2)}`;
         }
 
-        function handlePlaceOrder(e) {
+        // PLACE ORDER & SAVE TO SUPABASE
+        async function handlePlaceOrder(e) {
             e.preventDefault();
             const link = document.getElementById('order-link').value.trim();
             const qty = parseInt(document.getElementById('order-quantity').value);
@@ -405,25 +443,31 @@
             userBalance -= total;
             updateBalanceDisplay();
 
-            const newOrder = {
-                id: Math.floor(10000 + Math.random() * 90000),
-                service: selectedService.name,
-                link: link,
-                quantity: qty,
-                total: total.toFixed(2),
-                status: 'Pending',
-                date: new Date().toISOString().split('T')[0]
-            };
+            const { error } = await supabaseClient.from('orders').insert([
+                {
+                    user_id: currentTelegramUser.id,
+                    service_name: selectedService.name,
+                    link: link,
+                    quantity: qty,
+                    total: total,
+                    status: 'Pending'
+                }
+            ]);
 
-            let currentOrders = JSON.parse(localStorage.getItem('earnova_orders')) || [];
-            currentOrders.unshift(newOrder);
-            localStorage.setItem('earnova_orders', JSON.stringify(currentOrders));
+            await supabaseClient.from('users').update({ balance: userBalance }).eq('id', currentTelegramUser.id);
+
+            if (error) {
+                alert('⚠️ Error placing order. Please try again.');
+                console.error(error);
+                return;
+            }
 
             alert('✅ Order placed successfully!');
             document.getElementById('order-link').value = '';
             goBack();
             switchMainTab('history');
             switchHistorySubTab('orders');
+            loadUserOrdersFromSupabase();
         }
 
         function selectPaymentMethod(method) {
@@ -482,8 +526,8 @@
             }
         }
 
-        // DEPOSIT REQUEST FUNCTION WITH PENDING CHECK
-        function handleDeposit(e) {
+        // DEPOSIT REQUEST & SAVE TO SUPABASE
+        async function handleDeposit(e) {
             e.preventDefault();
             const usd = parseFloat(document.getElementById('deposit-usd').value);
             const txid = document.getElementById('deposit-txid').value.trim();
@@ -493,25 +537,31 @@
                 return;
             }
 
-            let userDeposits = JSON.parse(localStorage.getItem('earnova_deposits')) || [];
-            const pendingDeposit = userDeposits.find(d => d.status === 'Pending');
+            const { data: existingDeposits } = await supabaseClient
+                .from('deposits')
+                .select('*')
+                .eq('user_id', currentTelegramUser.id)
+                .eq('status', 'Pending');
 
-            if (pendingDeposit) {
-                alert('⚠️ Please wait! Your previous deposit request is still Pending. You can submit a new request once the previous one is Approved or Rejected.');
+            if (existingDeposits && existingDeposits.length > 0) {
+                alert('⚠️ Please wait! Your previous deposit request is still Pending.');
                 return;
             }
 
-            const newDeposit = {
-                id: Math.floor(10000 + Math.random() * 90000),
-                method: currentDepositMethod.toUpperCase(),
-                amount: usd.toFixed(2),
-                txid: txid,
-                status: 'Pending',
-                date: new Date().toISOString().split('T')[0]
-            };
+            const { error } = await supabaseClient.from('deposits').insert([
+                {
+                    user_id: currentTelegramUser.id,
+                    method: currentDepositMethod.toUpperCase(),
+                    amount: usd,
+                    txid: txid,
+                    status: 'Pending'
+                }
+            ]);
 
-            userDeposits.unshift(newDeposit);
-            localStorage.setItem('earnova_deposits', JSON.stringify(userDeposits));
+            if (error) {
+                alert('⚠️ Error submitting deposit.');
+                return;
+            }
 
             alert('✅ Your deposit request has been successfully submitted! Please wait for admin verification.');
             
@@ -519,13 +569,19 @@
             document.getElementById('deposit-txid').value = '';
             switchMainTab('history');
             switchHistorySubTab('deposits');
+            loadUserDepositsFromSupabase();
         }
 
-        function renderUserOrders() {
+        // LOAD ORDERS FROM SUPABASE
+        async function loadUserOrdersFromSupabase() {
             const container = document.getElementById('user-orders-container');
-            const orders = JSON.parse(localStorage.getItem('earnova_orders')) || [];
+            const { data: orders, error } = await supabaseClient
+                .from('orders')
+                .select('*')
+                .eq('user_id', currentTelegramUser.id)
+                .order('created_at', { ascending: false });
 
-            if (orders.length === 0) {
+            if (!orders || orders.length === 0) {
                 container.innerHTML = `<div class="card-bg p-8 text-center rounded-2xl"><p class="text-xs text-gray-400">You haven't placed any orders yet.</p></div>`;
                 return;
             }
@@ -543,10 +599,10 @@
                             <span class="font-mono text-gray-400">Order ID: #${ord.id}</span>
                             <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold ${statusBg}">${ord.status}</span>
                         </div>
-                        <h4 class="font-bold text-xs text-white leading-snug">${ord.service}</h4>
+                        <h4 class="font-bold text-xs text-white leading-snug">${ord.service_name}</h4>
                         <div class="flex justify-between items-center text-[11px] pt-1 border-t border-gray-800/80 font-mono">
                             <span class="text-gray-400">Qty: ${ord.quantity.toLocaleString()}</span>
-                            <span class="text-orange-400 font-bold">$${ord.total}</span>
+                            <span class="text-orange-400 font-bold">$${parseFloat(ord.total).toFixed(2)}</span>
                         </div>
                     </div>
                 `;
@@ -554,11 +610,16 @@
             container.innerHTML = html;
         }
 
-        function renderUserDeposits() {
+        // LOAD DEPOSITS FROM SUPABASE
+        async function loadUserDepositsFromSupabase() {
             const container = document.getElementById('user-deposits-container');
-            const deposits = JSON.parse(localStorage.getItem('earnova_deposits')) || [];
+            const { data: deposits, error } = await supabaseClient
+                .from('deposits')
+                .select('*')
+                .eq('user_id', currentTelegramUser.id)
+                .order('created_at', { ascending: false });
 
-            if (deposits.length === 0) {
+            if (!deposits || deposits.length === 0) {
                 container.innerHTML = `<div class="card-bg p-8 text-center rounded-2xl"><p class="text-xs text-gray-400">You haven't made any deposit requests yet.</p></div>`;
                 return;
             }
@@ -577,7 +638,7 @@
                         </div>
                         <div class="flex justify-between items-center font-mono">
                             <span class="text-gray-300">Method: <b>${dep.method}</b></span>
-                            <span class="text-orange-400 font-extrabold text-sm">$${dep.amount}</span>
+                            <span class="text-orange-400 font-extrabold text-sm">$${parseFloat(dep.amount).toFixed(2)}</span>
                         </div>
                         <p class="text-[10px] text-gray-500 font-mono truncate">TXID: ${dep.txid}</p>
                     </div>
@@ -597,13 +658,13 @@
                 depositsBtn.className = 'pb-2 text-gray-400 hover:text-white transition';
                 ordersContainer.classList.remove('hidden');
                 depositsContainer.classList.add('hidden');
-                renderUserOrders();
+                loadUserOrdersFromSupabase();
             } else {
                 depositsBtn.className = 'pb-2 text-orange-400 border-b-2 border-orange-500 transition';
                 ordersBtn.className = 'pb-2 text-gray-400 hover:text-white transition';
                 depositsContainer.classList.remove('hidden');
                 ordersContainer.classList.add('hidden');
-                renderUserDeposits();
+                loadUserDepositsFromSupabase();
             }
         }
 
