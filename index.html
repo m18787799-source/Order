@@ -17,6 +17,11 @@
 </head>
 <body class="pb-20 select-none">
 
+    <!-- TOAST NOTIFICATION -->
+    <div id="toast" class="fixed top-5 left-1/2 transform -translate-x-1/2 bg-green-600 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-lg transition-all duration-300 opacity-0 pointer-events-none z-50">
+        Copied to clipboard!
+    </div>
+
     <!-- HEADER -->
     <header class="sticky top-0 z-40 bg-[#0b0f19]/90 backdrop-blur-md px-4 py-3 border-b border-gray-800 flex justify-between items-center">
         <div class="flex items-center space-x-2">
@@ -212,9 +217,11 @@
                     </div>
                 </div>
 
-                <div id="deposit-instructions" class="p-3 bg-[#0b0f19] rounded-xl border border-gray-800 space-y-1.5 font-mono text-[11px] text-gray-300">
+                <!-- PAYMENT INFO BOX (CLICK TO COPY ENABLED) -->
+                <div id="deposit-instructions" onclick="copyPaymentDetail()" class="p-3 bg-[#0b0f19] rounded-xl border border-gray-800 space-y-1.5 font-mono text-[11px] text-gray-300 cursor-pointer hover:border-orange-500/50 transition relative group">
+                    <div class="absolute top-2 right-2 text-[10px] text-orange-400 bg-orange-500/10 px-2 py-0.5 rounded opacity-80 group-hover:opacity-100 font-sans font-bold">📋 Tap to Copy</div>
                     <p class="text-orange-400 font-bold mb-1" id="instruction-title">Telebirr Payment Info:</p>
-                    <p id="instruction-text">Send ETB to Account: <span class="text-white font-bold">0951791727</span></p>
+                    <p id="instruction-text">Send ETB to Account: <span class="text-white font-bold" id="copy-value">0951791727</span></p>
                     <p>Exchange Rate: <span class="text-green-400">160 ETB = $1.00</span></p>
                 </div>
 
@@ -277,4 +284,316 @@
         const allServices = [
             { id: 1, category_id: 'tiktok', name: 'TikTok Real Followers Service💎 | 5K per Day | Active & Stable | High Retention | Fast Start | Up to 100K Followers ⚡️', min_qty: 50, max_qty: 100000, rate_per_1k: 68.00 },
             { id: 2, category_id: 'telegram', name: 'Telegram Real Members | Fast Start | Active & Stable', min_qty: 10, max_qty: 100000, rate_per_1k: 30.00 },
-            { id: 3, category_id: 'twitter', name: 'Twitter Real Follower
+            { id: 3, category_id: 'twitter', name: 'Twitter Real Followers Service 💎 🌐 | 5K Daily | Stable Retention | Fast Start | Up to 100K Followers | 🛡️ 60-Day Refill', min_qty: 10, max_qty: 100000, rate_per_1k: 89.50 },
+            { id: 4, category_id: 'youtube', name: 'YouTube Real Subscribers | Real User Subscriptions · Natural Growth ⚡️ | Instant Start', min_qty: 10, max_qty: 100000, rate_per_1k: 72.00 },
+            { id: 5, category_id: 'instagram', name: 'Instagram Real Followers Service 💎| 5K per Day | Active & Stable | High Retention | Fast Start | Up to 100K Followers ⚡️', min_qty: 10, max_qty: 100000, rate_per_1k: 68.00 },
+            { id: 6, category_id: 'facebook', name: 'Facebook Real Followers Service💎 | 5K per Day | Active & Stable | High Retention | Fast Start | Up to 100K Followers ⚡️', min_qty: 50, max_qty: 10000, rate_per_1k: 68.00 }
+        ];
+
+        let selectedService = null;
+        let currentDepositMethod = 'telebirr';
+        let userBalance = parseFloat(localStorage.getItem('earnova_balance')) || 0.00;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            if (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) {
+                const user = tg.initDataUnsafe.user;
+                const name = user.first_name || 'User';
+                document.getElementById('user-display').innerText = name;
+                document.getElementById('user-avatar').innerText = name.charAt(0).toUpperCase();
+            }
+            updateCategoryCounts();
+            updateBalanceDisplay();
+        });
+
+        function updateBalanceDisplay() {
+            document.getElementById('user-balance').innerText = userBalance.toFixed(2);
+            localStorage.setItem('earnova_balance', userBalance.toFixed(2));
+        }
+
+        function updateCategoryCounts() {
+            const categories = ['telegram', 'twitter', 'tiktok', 'instagram', 'facebook', 'youtube'];
+            categories.forEach(cat => {
+                const count = allServices.filter(s => s.category_id === cat).length;
+                const el = document.getElementById(`cat-count-${cat}`);
+                if (el) el.innerText = `${count} service(s)`;
+            });
+        }
+
+        function showCategoryServices(catId) {
+            document.getElementById('categories-view').classList.add('hidden');
+            document.getElementById('search-bar-section').classList.add('hidden');
+            document.getElementById('services-view').classList.remove('hidden');
+            document.getElementById('back-btn').classList.remove('hidden');
+
+            const filtered = catId === 'all' ? allServices : allServices.filter(s => s.category_id === catId);
+            document.getElementById('current-category-title').innerText = catId.toUpperCase() + ' Services';
+            document.getElementById('service-count-badge').innerText = filtered.length;
+
+            const container = document.getElementById('services-container');
+            if (filtered.length === 0) {
+                container.innerHTML = `<p class="text-xs text-gray-400 text-center py-6">No services available.</p>`;
+                return;
+            }
+
+            let html = '';
+            filtered.forEach(serv => {
+                html += `
+                    <div class="card-bg p-3.5 rounded-2xl space-y-2">
+                        <h4 class="font-bold text-xs text-gray-200 leading-snug">${serv.name}</h4>
+                        <div class="flex justify-between items-center text-[11px] pt-1">
+                            <span class="text-gray-400 font-mono">Min: ${serv.min_qty} - Max: ${serv.max_qty}</span>
+                            <span class="font-extrabold text-orange-400 text-xs">$${parseFloat(serv.rate_per_1k).toFixed(2)}<span class="text-gray-400 font-normal">/1K</span></span>
+                        </div>
+                        <button onclick="openOrderForm(${serv.id})" class="w-full orange-btn py-2.5 rounded-xl text-xs font-bold shadow transition active:scale-95 mt-1">
+                            Order Now
+                        </button>
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
+        }
+
+        function openOrderForm(serviceId) {
+            selectedService = allServices.find(s => s.id === serviceId);
+            document.getElementById('services-view').classList.add('hidden');
+            document.getElementById('order-form-view').classList.remove('hidden');
+
+            document.getElementById('order-service-name').innerText = selectedService.name;
+            document.getElementById('order-service-rate').innerText = `$${parseFloat(selectedService.rate_per_1k).toFixed(2)} per 1,000`;
+            document.getElementById('quantity-limits').innerText = `Min: ${selectedService.min_qty.toLocaleString()} - Max: ${selectedService.max_qty.toLocaleString()}`;
+            document.getElementById('order-quantity').value = selectedService.min_qty;
+            calculateTotal();
+        }
+
+        function calculateTotal() {
+            if (!selectedService) return;
+            const qty = parseInt(document.getElementById('order-quantity').value) || 0;
+            const total = (qty / 1000) * parseFloat(selectedService.rate_per_1k);
+            document.getElementById('order-total-price').innerText = `$${total.toFixed(2)}`;
+        }
+
+        function handlePlaceOrder(e) {
+            e.preventDefault();
+            const link = document.getElementById('order-link').value.trim();
+            const qty = parseInt(document.getElementById('order-quantity').value);
+
+            if (qty < selectedService.min_qty || qty > selectedService.max_qty) {
+                alert(`⚠️ Quantity must be between ${selectedService.min_qty} and ${selectedService.max_qty}`);
+                return;
+            }
+
+            const total = parseFloat(((qty / 1000) * parseFloat(selectedService.rate_per_1k)).toFixed(2));
+
+            if (userBalance < total) {
+                alert(`⚠️ Insufficient balance! Your balance is $${userBalance.toFixed(2)}, but total is $${total.toFixed(2)}. Please deposit funds.`);
+                switchMainTab('deposit');
+                return;
+            }
+
+            userBalance -= total;
+            updateBalanceDisplay();
+
+            const newOrder = {
+                id: Math.floor(10000 + Math.random() * 90000),
+                service: selectedService.name,
+                link: link,
+                quantity: qty,
+                total: total.toFixed(2),
+                status: 'Pending',
+                date: new Date().toISOString().split('T')[0]
+            };
+
+            let currentOrders = JSON.parse(localStorage.getItem('earnova_orders')) || [];
+            currentOrders.unshift(newOrder);
+            localStorage.setItem('earnova_orders', JSON.stringify(currentOrders));
+
+            alert('✅ Order placed successfully!');
+            document.getElementById('order-link').value = '';
+            goBack();
+            switchMainTab('history');
+        }
+
+        function selectPaymentMethod(method) {
+            currentDepositMethod = method;
+            ['telebirr', 'mpesa', 'bep20'].forEach(m => {
+                const btn = document.getElementById(`method-${m}`);
+                if (m === method) {
+                    btn.className = 'p-3 rounded-xl border border-orange-500 bg-orange-500/10 text-orange-400 font-bold text-center transition';
+                } else {
+                    btn.className = 'p-3 rounded-xl border border-gray-800 bg-[#0b0f19] text-gray-300 font-bold text-center transition';
+                }
+            });
+
+            const titleEl = document.getElementById('instruction-title');
+            const textEl = document.getElementById('instruction-text');
+            if (method === 'telebirr') {
+                titleEl.innerText = 'Telebirr Payment Info:';
+                textEl.innerHTML = `Send ETB to Account: <span class="text-white font-bold" id="copy-value">0951791727</span><br>Exchange Rate: <span class="text-green-400">160 ETB = $1.00</span>`;
+            } else if (method === 'mpesa') {
+                titleEl.innerText = 'Mpesa Payment Info:';
+                textEl.innerHTML = `Send ETB to Mpesa Account: <span class="text-white font-bold" id="copy-value">0786810360</span><br>Exchange Rate: <span class="text-green-400">160 ETB = $1.00</span>`;
+            } else if (method === 'bep20') {
+                titleEl.innerText = 'BEP20 (USDT/BNB) Payment Info:';
+                textEl.innerHTML = `Send USDT/BNB (BEP20) to Address:<br><span class="text-white font-mono break-all text-[10px]" id="copy-value">0x065764f29e9b00Aa92E9A0EF9027D2EF9b080C25</span>`;
+            }
+            calculateDepositEquivalent();
+        }
+
+        // ONE-CLICK COPY FUNCTION WITH TOAST ALERT
+        function copyPaymentDetail() {
+            const textToCopy = document.getElementById('copy-value').innerText.trim();
+            navigator.clipboard.writeText(textToCopy).then(() => {
+                showToast();
+            }).catch(err => {
+                console.error('Failed to copy: ', err);
+            });
+        }
+
+        function showToast() {
+            const toast = document.getElementById('toast');
+            toast.classList.remove('opacity-0');
+            toast.classList.add('opacity-100');
+            setTimeout(() => {
+                toast.classList.remove('opacity-100');
+                toast.classList.add('opacity-0');
+            }, 2000);
+        }
+
+        function calculateDepositEquivalent() {
+            const usd = parseFloat(document.getElementById('deposit-usd').value) || 0;
+            const eqEl = document.getElementById('deposit-equivalent');
+            if (currentDepositMethod === 'telebirr' || currentDepositMethod === 'mpesa') {
+                const etb = usd * 160;
+                eqEl.innerText = `Equivalent: ${etb.ETB ? etb.ETB : etb.toFixed(2)} ETB (Rate: 160 ETB = $1)`;
+            } else {
+                eqEl.innerText = `Crypto Deposit (BEP20 Network)`;
+            }
+        }
+
+        function handleDeposit(e) {
+            e.preventDefault();
+            const usd = parseFloat(document.getElementById('deposit-usd').value);
+            if (usd < 1) {
+                alert('⚠️ Minimum deposit amount is $1.00');
+                return;
+            }
+
+            userBalance += usd;
+            updateBalanceDisplay();
+
+            alert(`✅ Deposit request submitted successfully! $${usd.toFixed(2)} added to your balance.`);
+            document.getElementById('deposit-usd').value = '';
+            document.getElementById('deposit-txid').value = '';
+            switchMainTab('services');
+        }
+
+        function renderUserOrders() {
+            const container = document.getElementById('user-orders-container');
+            const orders = JSON.parse(localStorage.getItem('earnova_orders')) || [];
+
+            if (orders.length === 0) {
+                container.innerHTML = `<div class="card-bg p-8 text-center rounded-2xl"><p class="text-xs text-gray-400">You haven't placed any orders yet.</p></div>`;
+                return;
+            }
+
+            let html = '';
+            orders.forEach(ord => {
+                let statusBg = 'bg-yellow-500/20 text-yellow-400';
+                if (ord.status === 'Completed') statusBg = 'bg-green-500/20 text-green-400';
+                if (ord.status === 'Processing') statusBg = 'bg-blue-500/20 text-blue-400';
+                if (ord.status === 'Canceled') statusBg = 'bg-red-500/20 text-red-400';
+
+                html += `
+                    <div class="card-bg p-4 rounded-2xl space-y-2">
+                        <div class="flex justify-between items-center text-xs">
+                            <span class="font-mono text-gray-400">Order ID: #${ord.id}</span>
+                            <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold ${statusBg}">${ord.status}</span>
+                        </div>
+                        <h4 class="font-bold text-xs text-white leading-snug">${ord.service}</h4>
+                        <div class="flex justify-between items-center text-[11px] pt-1 border-t border-gray-800/80 font-mono">
+                            <span class="text-gray-400">Qty: ${ord.quantity.toLocaleString()}</span>
+                            <span class="text-orange-400 font-bold">$${ord.total}</span>
+                        </div>
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
+        }
+
+        function switchMainTab(tab) {
+            document.getElementById('main-services-tab').classList.add('hidden');
+            document.getElementById('main-deposit-tab').classList.add('hidden');
+            document.getElementById('main-history-tab').classList.add('hidden');
+            
+            document.getElementById('nav-services-btn').className = 'flex flex-col items-center text-gray-400 hover:text-white font-bold text-xs space-y-1';
+            document.getElementById('nav-deposit-btn').className = 'flex flex-col items-center text-gray-400 hover:text-white font-bold text-xs space-y-1';
+            document.getElementById('nav-history-btn').className = 'flex flex-col items-center text-gray-400 hover:text-white font-bold text-xs space-y-1';
+
+            if (tab === 'services') {
+                document.getElementById('main-services-tab').classList.remove('hidden');
+                document.getElementById('nav-services-btn').className = 'flex flex-col items-center text-orange-400 font-bold text-xs space-y-1';
+            } else if (tab === 'deposit') {
+                document.getElementById('main-deposit-tab').classList.remove('hidden');
+                document.getElementById('nav-deposit-btn').className = 'flex flex-col items-center text-orange-400 font-bold text-xs space-y-1';
+            } else if (tab === 'history') {
+                document.getElementById('main-history-tab').classList.remove('hidden');
+                document.getElementById('nav-history-btn').className = 'flex flex-col items-center text-orange-400 font-bold text-xs space-y-1';
+                renderUserOrders();
+            }
+        }
+
+        function handleSearch() {
+            const query = document.getElementById('search-input').value.toLowerCase().trim();
+            if (query === '') {
+                document.getElementById('services-view').classList.add('hidden');
+                document.getElementById('categories-view').classList.remove('hidden');
+                document.getElementById('search-bar-section').classList.remove('hidden');
+                document.getElementById('back-btn').classList.add('hidden');
+                return;
+            }
+
+            document.getElementById('categories-view').classList.add('hidden');
+            document.getElementById('services-view').classList.remove('hidden');
+            document.getElementById('back-btn').classList.remove('hidden');
+            document.getElementById('current-category-title').innerText = 'Search Results';
+
+            const filtered = allServices.filter(s => s.name.toLowerCase().includes(query));
+            document.getElementById('service-count-badge').innerText = filtered.length;
+            
+            const container = document.getElementById('services-container');
+            if (filtered.length === 0) {
+                container.innerHTML = `<p class="text-xs text-gray-400 text-center py-6">No matching services found.</p>`;
+                return;
+            }
+
+            let html = '';
+            filtered.forEach(serv => {
+                html += `
+                    <div class="card-bg p-3.5 rounded-2xl space-y-2">
+                        <h4 class="font-bold text-xs text-gray-200 leading-snug">${serv.name}</h4>
+                        <div class="flex justify-between items-center text-[11px]">
+                            <span class="text-gray-400 font-mono">Min: ${serv.min_qty} - Max: ${serv.max_qty}</span>
+                            <span class="font-extrabold text-orange-400 text-xs">$${parseFloat(serv.rate_per_1k).toFixed(2)}/1K</span>
+                        </div>
+                        <button onclick="openOrderForm(${serv.id})" class="w-full orange-btn py-2.5 rounded-xl text-xs font-bold shadow transition active:scale-95 mt-1">Order Now</button>
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
+        }
+
+        function goBack() {
+            if (!document.getElementById('order-form-view').classList.contains('hidden')) {
+                document.getElementById('order-form-view').classList.add('hidden');
+                document.getElementById('services-view').classList.remove('hidden');
+            } else {
+                document.getElementById('services-view').classList.add('hidden');
+                document.getElementById('categories-view').classList.remove('hidden');
+                document.getElementById('search-bar-section').classList.remove('hidden');
+                document.getElementById('back-btn').classList.add('hidden');
+                document.getElementById('search-input').value = '';
+            }
+        }
+    </script>
+</body>
+</html>
