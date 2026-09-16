@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -391,7 +390,7 @@
             const qty = parseInt(document.getElementById('order-quantity').value);
 
             if (qty < selectedService.min_qty || qty > selectedService.max_qty) {
-                alert(`⚠️ Quantity must be between ${selectedService.min_qty} and ${selectedService.max_qty}`);
+                alert(`⚠️ Quantity must be between ${selectedService.min_qty.toLocaleString()} and ${selectedService.max_qty.toLocaleString()}`);
                 return;
             }
 
@@ -498,7 +497,7 @@
             const pendingDeposit = userDeposits.find(d => d.status === 'Pending');
 
             if (pendingDeposit) {
-                alert('⚠️ እባክዎ ይጠብቁ! ከዚህ በፊት የላኩት የክፍያ ጥያቄ ገና Pending ላይ ነው። አዲስ ጥያቄ ለመላክ የቅድሙ Approved ወይም Rejected መሆን አለበት።');
+                alert('⚠️ Please wait! Your previous deposit request is still Pending. You can submit a new request once the previous one is Approved or Rejected.');
                 return;
             }
 
@@ -514,11 +513,12 @@
             userDeposits.unshift(newDeposit);
             localStorage.setItem('earnova_deposits', JSON.stringify(userDeposits));
 
-            alert('✅ የክፍያ ጥያቄዎ በተሳካ ሁኔታ ተልኳል! አስተዳዳሪው እስኪያረጋግጠው ድረስ በትዕግስት ይጠብቁ።');
+            alert('✅ Your deposit request has been successfully submitted! Please wait for admin verification.');
             
             document.getElementById('deposit-usd').value = '';
             document.getElementById('deposit-txid').value = '';
-            switchMainTab('services');
+            switchMainTab('history');
+            switchHistorySubTab('deposits');
         }
 
         function renderUserOrders() {
